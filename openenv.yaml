@@ -1,0 +1,51 @@
+name: sap-enterprise-ops-env
+version: "1.0.0"
+description: >
+  An AI agent acts as an SAP Basis Administrator managing a production
+  enterprise system under crisis. Incidents include background job failures,
+  transport errors, P1 system-down scenarios, and embedded security threats.
+  Features cascading failures, SLA pressure, and red herring alerts.
+
+author: Rajeev Lokesh
+domain: enterprise-erp
+tags:
+  - sap
+  - basis
+  - enterprise
+  - incident-response
+  - cybersecurity
+  - openenv
+
+tasks:
+  - id: task_1_job_failure
+    name: Background Job Failure Resolution
+    difficulty: easy
+    max_steps: 5
+    sla_seconds: 300
+
+  - id: task_2_transport_security
+    name: Transport Error + Security Anomaly
+    difficulty: medium
+    max_steps: 8
+    sla_seconds: 480
+
+  - id: task_3_p1_incident
+    name: P1 System Down - Full Crisis Response
+    difficulty: hard
+    max_steps: 12
+    sla_seconds: 600
+
+action_space: SAPAction
+observation_space: SAPObservation
+reward_range: [-0.75, 1.10]
+
+server:
+  port: 7860
+  framework: fastapi
+
+endpoints:
+  reset: POST /reset
+  step: POST /step
+  state: GET /state
+  health: GET /health
+  tasks: GET /tasks
