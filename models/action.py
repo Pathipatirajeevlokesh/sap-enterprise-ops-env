@@ -48,5 +48,4 @@ class SAPAction(BaseModel):
         None, description="Agent explanation — used for partial reward scoring"
     )
 
-    class Config:
-        use_enum_values = True
+    model_config = {"use_enum_values": True}

@@ -221,7 +221,7 @@ def grade_task3(actions: list[SAPAction], scenario: dict) -> tuple[float, dict]:
                     breakdown["memory_test_passed"] = True
 
     # Check order correctness
-    if fixes_taken == correct_order[:len(fixes_taken)]:
+    if fixes_taken and fixes_taken == correct_order[:len(fixes_taken)]:
         breakdown["correct_order"] = True
 
     # Score calculation — 7 components

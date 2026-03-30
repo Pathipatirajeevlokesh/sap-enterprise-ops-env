@@ -65,6 +65,8 @@ class SAPBasisEnvironment:
         Returns (observation, reward, done, info)
         """
 
+        if self.episode_state is None:
+            raise RuntimeError("No active episode. Call reset() first.")
         if self.episode_state.done:
             raise RuntimeError("Episode is done. Call reset() first.")
 
