@@ -306,57 +306,65 @@ class SAPBasisEnvironment:
         return base
 
     def _check_done(self, action: SAPAction) -> tuple[bool, str]:
-        """Check if episode should end."""
-        es = self.episode_state
+            """Check if episode should end."""
+            es = self.episode_state
 
-        # SLA breach
-        if es.sla_seconds_remaining <= 0:
-            return True, "sla_breach"
+            # Loop detection — same fix 3 times in a row
+            if len(self.fixes_taken) >= 3:
+                last_three = self.fixes_taken[-3:]
+                if len(set(last_three)) == 1:
+                    return True, "loop_detected"
 
-        # Max steps reached
-        if es.step_number >= es.max_steps:
-            return True, "max_steps"
+            # SLA breach
+            if es.sla_seconds_remaining <= 0:
+                return True, "sla_breach"
 
-        # Destructive action ends episode
-        if action.fix_method == FixMethod.DELETE_JOB:
-            return True, "destructive_action"
+            # Max steps reached
+            if es.step_number >= es.max_steps:
+                return True, "max_steps"
 
-        # Task solved check
-        task_id = self.scenario["task_id"]
-        fixes   = self.fixes_taken
+            # Destructive action ends episode
+            if action.fix_method == FixMethod.DELETE_JOB:
+                return True, "destructive_action"
 
-        if task_id == "task_1_job_failure":
-            if FixMethod.RESTART_JOB in fixes:
-                return True, "solved"
+            # Task solved check
+            task_id = self.scenario["task_id"]
+            fixes   = self.fixes_taken
 
-        elif task_id == "task_2_transport_security":
-            transport_done = FixMethod.RELEASE_TRANSPORT in fixes
-            security_done  = (
-                FixMethod.BLOCK_IP in fixes or
-                FixMethod.RESET_CREDENTIALS in fixes
-            )
-            if transport_done and security_done:
-                return True, "solved"
+            if task_id == "task_1_job_failure":
+                if FixMethod.RESTART_JOB in fixes:
+                    return True, "solved"
 
-        elif task_id == "task_3_p1_incident":
-            required = [
-                FixMethod.RECONNECT_DB,
-                FixMethod.CLEAR_BUFFER,
-                FixMethod.RESTART_ICM,
-                FixMethod.BLOCK_IP,
-            ]
-            if all(f in fixes for f in required):
-                return True, "solved"
+            elif task_id == "task_2_transport_security":
+                transport_done = FixMethod.RELEASE_TRANSPORT in fixes
+                security_done  = (
+                    FixMethod.BLOCK_IP in fixes or
+                    FixMethod.RESET_CREDENTIALS in fixes
+                )
+                if transport_done and security_done:
+                    return True, "solved"
 
-        return False, None
+            elif task_id == "task_3_p1_incident":
+                required = [
+                    FixMethod.RECONNECT_DB,
+                    FixMethod.CLEAR_BUFFER,
+                    FixMethod.RESTART_ICM,
+                    FixMethod.BLOCK_IP,
+                ]
+                if all(f in fixes for f in required):
+                    return True, "solved"
+
+            return False, None
 
     def _summarise_action(
         self, action: SAPAction, reward: float, cascade: dict | None
     ) -> str:
         """Build a one-line history entry for this step."""
+        fix_info = f":{action.fix_method}" if action.fix_method else ""
+        sec_info = f":{action.security_action}" if action.security_action else ""
         summary = (
             f"Step {self.episode_state.step_number}: "
-            f"{action.action_type} on {action.target_component} "
+            f"{action.action_type}{fix_info}{sec_info} on {action.target_component} "
             f"→ reward {reward:+.3f}"
         )
         if cascade:

@@ -1,0 +1,29 @@
+{
+  "model": "meta/llama-3.3-70b-instruct",
+  "temperature": 0.0,
+  "results": [
+    {
+      "task_id": "task_1_job_failure",
+      "final_score": 0.75,
+      "total_reward": 0.2608,
+      "steps_taken": 3,
+      "elapsed_sec": 10.78
+    },
+    {
+      "task_id": "task_2_transport_security",
+      "final_score": 1.0,
+      "total_reward": 0.569,
+      "steps_taken": 8,
+      "elapsed_sec": 0.02
+    },
+    {
+      "task_id": "task_3_p1_incident",
+      "final_score": 0.7143,
+      "total_reward": 0.6839,
+      "steps_taken": 6,
+      "elapsed_sec": 0.02
+    }
+  ],
+  "average_score": 0.8214,
+  "total_elapsed": 10.84
+}

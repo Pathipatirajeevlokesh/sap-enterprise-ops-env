@@ -85,6 +85,11 @@ def compute_reward(
         # Apply SLA multiplier to positive reward
         if reward > 0:
             reward = reward * sla_multiplier
+        
+        # Penalty for repeating same fix
+        if action.fix_method and previous_actions.count(action.fix_method) > 1:
+            breakdown["penalties"] -= 0.10
+            reward -= 0.10
 
     # ── TASK 2 SCORING ───────────────────────────────────────────
     elif task_id == "task_2_transport_security":
@@ -114,6 +119,11 @@ def compute_reward(
 
         if reward > 0:
             reward = reward * sla_multiplier
+        
+        # Penalty for repeating same fix
+        if action.fix_method and previous_actions.count(action.fix_method) > 1:
+            breakdown["penalties"] -= 0.10
+            reward -= 0.10
 
     # ── TASK 3 SCORING ───────────────────────────────────────────
     elif task_id == "task_3_p1_incident":
@@ -162,6 +172,11 @@ def compute_reward(
 
         if reward > 0:
             reward = reward * sla_multiplier
+
+        # Penalty for repeating same fix
+        if action.fix_method and previous_actions.count(action.fix_method) > 1:
+            breakdown["penalties"] -= 0.10
+            reward -= 0.10
 
     # ── CLAMP to [-0.75, 1.10] ───────────────────────────────────
     reward = max(-0.75, min(1.10, round(reward, 4)))
