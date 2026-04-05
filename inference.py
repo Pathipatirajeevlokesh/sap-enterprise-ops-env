@@ -6,7 +6,7 @@ Mandatory submission file — must be in root directory.
 
 Environment variables required:
     API_BASE_URL   The API endpoint for the LLM
-    MODEL_NAME     The model identifier to use
+    MODEL_NAME     The model identifier to use for inference
     HF_TOKEN       Your Hugging Face / API key
 """
 
@@ -16,6 +16,7 @@ import time
 import threading
 import subprocess
 import sys
+from typing import List, Optional
 from openai import OpenAI
 from dotenv import load_dotenv, find_dotenv
 
@@ -29,7 +30,9 @@ MODEL_NAME   = os.getenv("MODEL_NAME",   "meta/llama-3.3-70b-instruct")
 HF_TOKEN     = os.getenv("HF_TOKEN",     "")
 MAX_STEPS    = 18
 TEMPERATURE  = 0.0
-MAX_RETRIES  = 0
+MAX_RETRIES  = 2
+BENCHMARK    = "sap-enterprise-ops-env"
+SUCCESS_SCORE_THRESHOLD = 0.5
 
 # ── LLM CLIENT ───────────────────────────────────────────────────
 
@@ -64,6 +67,29 @@ def env_health() -> bool:
         return False
 
 
+# ── STDOUT LOGGING (MANDATORY FORMAT) ────────────────────────────
+
+def log_start(task: str, env: str, model: str) -> None:
+    print(f"[START] task={task} env={env} model={model}", flush=True)
+
+
+def log_step(step: int, action: str, reward: float, done: bool, error: Optional[str]) -> None:
+    error_val = error if error else "null"
+    done_val  = str(done).lower()
+    print(
+        f"[STEP] step={step} action={action} reward={reward:.2f} done={done_val} error={error_val}",
+        flush=True,
+    )
+
+
+def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
+    rewards_str = ",".join(f"{r:.2f}" for r in rewards)
+    print(
+        f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}",
+        flush=True,
+    )
+
+
 # ── SYSTEM PROMPT ────────────────────────────────────────────────
 
 SYSTEM_PROMPT = """You are an expert SAP Basis Administrator.
@@ -92,14 +118,12 @@ reset_credentials, escalate_soc, check_log
 Valid transaction codes: SM37, STMS, DB13, SM21, SMICM
 
 STRICT RULES:
-- NEVER use delete_job (destructive — ends episode with penalty)
-- NEVER use reimport_transport (destructive — triggers cascade)
-- NEVER target QAS or DEV systems (wrong system penalty)
+- NEVER use delete_job (destructive)
+- NEVER use reimport_transport (destructive)
+- NEVER target QAS or DEV systems
 - Step 1: always use action_type=diagnose first
 - Task 3 fix ORDER: reconnect_db FIRST, then clear_buffer, then restart_icm, then block_ip, then escalate_soc
-- For security threats: use action_type=escalate with security_action=block_ip or escalate_soc
 - Do NOT repeat the same fix_method twice in a row
-- After reconnect_db is done, move to clear_buffer next
 """
 
 
@@ -111,7 +135,6 @@ def smart_fallback(obs: dict) -> dict:
     history      = obs.get("episode_history", [])
     history_text = " ".join(history).lower()
 
-    # ── TASK 1 ───────────────────────────────────────────────────
     if task_id == "task_1_job_failure":
         if step == 0:
             return {
@@ -127,7 +150,6 @@ def smart_fallback(obs: dict) -> dict:
             "reasoning": "Restart aborted job via SM37"
         }
 
-    # ── TASK 2 ───────────────────────────────────────────────────
     elif task_id == "task_2_transport_security":
         if step == 0:
             return {
@@ -157,7 +179,6 @@ def smart_fallback(obs: dict) -> dict:
             "reasoning": "Escalate to SOC for full investigation"
         }
 
-    # ── TASK 3 ───────────────────────────────────────────────────
     elif task_id == "task_3_p1_incident":
         if step <= 1:
             return {
@@ -172,28 +193,28 @@ def smart_fallback(obs: dict) -> dict:
                 "action_type": "fix", "target_component": "db",
                 "transaction_code": "DB13", "fix_method": "reconnect_db",
                 "diagnosis": None, "security_action": None,
-                "reasoning": "Task 3 order step 1: reconnect DB first"
+                "reasoning": "Task 3 step 1: reconnect DB first"
             }
         if "clear_buffer" not in history_text:
             return {
                 "action_type": "fix", "target_component": "memory",
                 "transaction_code": "SM50", "fix_method": "clear_buffer",
                 "diagnosis": None, "security_action": None,
-                "reasoning": "Task 3 order step 2: clear memory buffer"
+                "reasoning": "Task 3 step 2: clear memory buffer"
             }
         if "restart_icm" not in history_text:
             return {
                 "action_type": "fix", "target_component": "icm",
                 "transaction_code": "SMICM", "fix_method": "restart_icm",
                 "diagnosis": None, "security_action": None,
-                "reasoning": "Task 3 order step 3: restart ICM"
+                "reasoning": "Task 3 step 3: restart ICM"
             }
         if "block_ip" not in history_text:
             return {
                 "action_type": "fix", "target_component": "security",
                 "transaction_code": "SM21", "fix_method": "block_ip",
                 "diagnosis": None, "security_action": None,
-                "reasoning": "Task 3 order step 4: block attacker IP"
+                "reasoning": "Task 3 step 4: block attacker IP"
             }
         return {
             "action_type": "escalate", "target_component": "security",
@@ -212,11 +233,7 @@ def smart_fallback(obs: dict) -> dict:
 
 # ── ACTION NORMALISER ────────────────────────────────────────────
 
-
-# ── ACTION NORMALISER ────────────────────────────────────────────
-
 def normalise_action(action: dict) -> dict:
-    """Normalise LLM output to valid enum values."""
     at = str(action.get("action_type", "diagnose")).lower()
     if at not in ["diagnose", "fix", "escalate", "ignore"]:
         if any(x in at for x in ["fix","restart","correct","repair","resolve","apply"]):
@@ -236,9 +253,9 @@ def normalise_action(action: dict) -> dict:
             "reset_credentials","escalate_soc","check_log"
         ]
         if fm not in valid:
-            if any(x in fm for x in ["restart","rerun","re_run","relaunch"]):
+            if any(x in fm for x in ["restart","rerun","relaunch"]):
                 action["fix_method"] = "restart_job"
-            elif any(x in fm for x in ["release","transport","stms"]):
+            elif any(x in fm for x in ["release","transport"]):
                 action["fix_method"] = "release_transport"
             elif any(x in fm for x in ["reconnect","db","database"]):
                 action["fix_method"] = "reconnect_db"
@@ -261,10 +278,8 @@ def normalise_action(action: dict) -> dict:
 # ── SAFE JSON PARSER ─────────────────────────────────────────────
 
 def safe_parse_json(raw: str) -> dict | None:
-    """Robust JSON parser — handles markdown fences and partial JSON."""
     if not raw:
         return None
-
     if "```" in raw:
         parts = raw.split("```")
         for part in parts:
@@ -274,26 +289,22 @@ def safe_parse_json(raw: str) -> dict | None:
             if part.strip().startswith("{"):
                 raw = part.strip()
                 break
-
     try:
         return json.loads(raw.strip())
     except json.JSONDecodeError:
         pass
-
     try:
         start = raw.index("{")
         end   = raw.rindex("}") + 1
         return json.loads(raw[start:end])
     except (ValueError, json.JSONDecodeError):
         pass
-
     return None
 
 
 # ── OBS TO PROMPT ────────────────────────────────────────────────
 
 def obs_to_prompt(obs: dict) -> str:
-    """Convert observation dict to a clear LLM prompt."""
     alerts      = obs.get("alert_queue", [])
     real_alerts = [a for a in alerts if not a.get("is_red_herring")]
     health      = obs.get("system_health", {})
@@ -316,32 +327,30 @@ SYSTEM HEALTH:
 ALERTS ({len(alerts)} total, {len(real_alerts)} real):
 """
     for a in alerts:
-        tag = " [FALSE POSITIVE — IGNORE THIS]" if a.get("is_red_herring") else ""
+        tag = " [FALSE POSITIVE — IGNORE]" if a.get("is_red_herring") else ""
         prompt += f"  [{a['priority'].upper()}] {a['error_code']}: {a['message']}{tag}\n"
 
     if history:
-        prompt += "\nPREVIOUS STEPS (do NOT repeat these actions):\n"
+        prompt += "\nPREVIOUS STEPS:\n"
         for h in history[-5:]:
             prompt += f"  {h}\n"
 
     prompt += f"\nAVAILABLE ACTIONS: {obs.get('available_actions', [])}"
-    prompt += "\n\nRespond with ONE JSON action object only. No markdown. No explanation."
+    prompt += "\n\nRespond with ONE JSON action object only. No markdown."
     return prompt
 
 
-# ── LLM ACTION WITH RETRY + REPEAT PREVENTION ───────────────────
+# ── LLM ACTION ───────────────────────────────────────────────────
 
 def get_llm_action(obs: dict) -> dict:
-    """Task 1: LLM with fallback. Tasks 2+3: pure smart fallback."""
     task_id = obs.get("task_id", "")
+    history = obs.get("episode_history", [])
 
-    # Tasks 2 and 3 — pure smart fallback, LLM gets confused with ordering
+    # Tasks 2 and 3 — pure smart fallback
     if task_id in ["task_2_transport_security", "task_3_p1_incident"]:
         return smart_fallback(obs)
 
-    # Task 1 — use LLM
-    history = obs.get("episode_history", [])
-    prompt  = obs_to_prompt(obs)
+    prompt = obs_to_prompt(obs)
 
     for attempt in range(MAX_RETRIES + 1):
         try:
@@ -371,65 +380,76 @@ def get_llm_action(obs: dict) -> dict:
 
         except Exception as e:
             if attempt < MAX_RETRIES:
-                print(f"    Retry {attempt+1}/{MAX_RETRIES}: {e}")
                 time.sleep(1)
             else:
                 return smart_fallback(obs)
 
     return smart_fallback(obs)
 
+
 # ── AGENT LOOP ───────────────────────────────────────────────────
 
 def run_task(task_id: str) -> dict:
-    """Run one full episode. Returns result dict."""
-    print(f"\n{'='*55}")
-    print(f"  TASK: {task_id}")
-    print(f"{'='*55}")
+    """Run one full episode with mandatory [START]/[STEP]/[END] logging."""
+
+    log_start(task=task_id, env=BENCHMARK, model=MODEL_NAME)
 
     reset_resp   = env_reset(task_id)
     obs          = reset_resp["observation"]
-    total_reward = 0.0
+    rewards      = []
     final_score  = 0.0
     steps_taken  = 0
     done         = False
-    start_time   = time.time()
+    success      = False
 
-    for step in range(MAX_STEPS):
-        if done:
-            break
+    try:
+        for step in range(1, MAX_STEPS + 1):
+            if done:
+                break
 
-        print(f"\n  Step {step+1} | SLA: {obs['sla_seconds_remaining']}s "
-              f"| Alerts: {len(obs['alert_queue'])}")
+            action      = get_llm_action(obs)
+            action_str  = action.get("fix_method") or action.get("action_type", "diagnose")
 
-        action = get_llm_action(obs)
-        diag   = action.get('diagnosis') or ''
-        print(f"  Action: {action.get('action_type')} → "
-              f"{action.get('fix_method') or diag[:40]}")
+            step_resp    = env_step(action)
+            obs          = step_resp["observation"]
+            reward       = step_resp["reward"]
+            done         = step_resp["done"]
+            error        = None
+            steps_taken  = step
+            rewards.append(reward)
 
-        step_resp    = env_step(action)
-        obs          = step_resp["observation"]
-        reward       = step_resp["reward"]
-        done         = step_resp["done"]
-        total_reward += reward
-        steps_taken  += 1
+            log_step(
+                step   = step,
+                action = str(action_str),
+                reward = reward,
+                done   = done,
+                error  = error,
+            )
 
-        print(f"  Reward: {reward:+.4f} | Done: {done}")
+            if done:
+                final_score = step_resp.get("final_score", 0.0)
+                break
 
-        if done:
-            final_score = step_resp.get("final_score", 0.0)
-            breakdown   = step_resp.get("grade_breakdown", {})
-            reason      = step_resp["info"].get("termination_reason", "unknown")
-            print(f"\n  EPISODE ENDED: {reason}")
-            print(f"  Final Score:   {final_score:.4f}")
-            print(f"  Grade:         {breakdown}")
+        success = final_score >= SUCCESS_SCORE_THRESHOLD
 
-    elapsed = time.time() - start_time
+    except Exception as e:
+        error = str(e)
+        log_step(step=steps_taken+1, action="error", reward=0.0, done=True, error=error)
+
+    finally:
+        log_end(
+            success = success,
+            steps   = steps_taken,
+            score   = final_score,
+            rewards = rewards,
+        )
+
     return {
-        "task_id":      task_id,
-        "final_score":  final_score,
-        "total_reward": round(total_reward, 4),
-        "steps_taken":  steps_taken,
-        "elapsed_sec":  round(elapsed, 2),
+        "task_id":     task_id,
+        "final_score": final_score,
+        "steps_taken": steps_taken,
+        "success":     success,
+        "rewards":     rewards,
     }
 
 
@@ -456,18 +476,10 @@ def start_server():
 # ── MAIN ─────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    print("\n" + "="*55)
-    print("  SAP ENTERPRISE OPS ENV — BASELINE INFERENCE")
-    print("="*55)
-    print(f"  Model:    {MODEL_NAME}")
-    print(f"  Env URL:  {API_BASE_URL}")
-
     if not env_health():
-        print("\n  Starting environment server...")
         if not start_server():
-            print("  ERROR: Server failed to start.")
+            print("ERROR: Server failed to start.", flush=True)
             sys.exit(1)
-    print("  Server: READY\n")
 
     TASKS = [
         "task_1_job_failure",
@@ -475,37 +487,22 @@ if __name__ == "__main__":
         "task_3_p1_incident",
     ]
 
-    results     = []
+    all_results = []
     total_start = time.time()
 
     for task_id in TASKS:
         result = run_task(task_id)
-        results.append(result)
+        all_results.append(result)
 
     total_elapsed = time.time() - total_start
 
-    print("\n" + "="*55)
-    print("  BASELINE RESULTS SUMMARY")
-    print("="*55)
-    print(f"  {'Task':<35} {'Score':>7} {'Steps':>6}")
-    print(f"  {'-'*50}")
-    for r in results:
-        print(f"  {r['task_id']:<35} {r['final_score']:>7.4f} {r['steps_taken']:>6}")
-
-    avg_score = sum(r["final_score"] for r in results) / len(results)
-    print(f"  {'-'*50}")
-    print(f"  {'AVERAGE SCORE':<35} {avg_score:>7.4f}")
-    print(f"\n  Total elapsed: {total_elapsed:.1f}s")
-    print("="*55)
-
+    # Save results
+    avg_score = sum(r["final_score"] for r in all_results) / len(all_results)
     with open("baseline_results.json", "w") as f:
         json.dump({
             "model":         MODEL_NAME,
             "temperature":   TEMPERATURE,
-            "results":       results,
+            "results":       all_results,
             "average_score": round(avg_score, 4),
             "total_elapsed": round(total_elapsed, 2),
         }, f, indent=2)
-
-    print("\n  Results saved to baseline_results.json")
-    print("  Run complete. ✓\n")

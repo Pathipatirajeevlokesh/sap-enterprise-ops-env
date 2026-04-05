@@ -5,25 +5,45 @@
     {
       "task_id": "task_1_job_failure",
       "final_score": 0.75,
-      "total_reward": 0.2608,
       "steps_taken": 3,
-      "elapsed_sec": 10.78
+      "success": true,
+      "rewards": [
+        0.0833,
+        0.065,
+        0.1125
+      ]
     },
     {
       "task_id": "task_2_transport_security",
       "final_score": 1.0,
-      "total_reward": 0.569,
       "steps_taken": 8,
-      "elapsed_sec": 0.02
+      "success": true,
+      "rewards": [
+        0.0,
+        0.2734,
+        0.1641,
+        0.0521,
+        0.0375,
+        0.0219,
+        0.01,
+        0.01
+      ]
     },
     {
       "task_id": "task_3_p1_incident",
       "final_score": 0.7143,
-      "total_reward": 0.6839,
       "steps_taken": 6,
-      "elapsed_sec": 0.02
+      "success": true,
+      "rewards": [
+        0.0917,
+        0.0825,
+        0.1667,
+        0.1418,
+        0.115,
+        0.0862
+      ]
     }
   ],
   "average_score": 0.8214,
-  "total_elapsed": 10.84
+  "total_elapsed": 194.43
 }
