@@ -4,7 +4,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 import json
-from fastapi import Body
 from fastapi import Request
 
 from models.action import SAPAction
@@ -65,13 +64,18 @@ def task_detail(task_id: str):
 @app.post("/reset")
 async def reset(request: Request):
     try:
-        body = await request.json()
-    except:
-        body = {}
+        raw_body = await request.body()
 
-    task_id = body.get("task_id", "task_1_job_failure")
+        if raw_body:
+            try:
+                body = json.loads(raw_body)
+            except:
+                body = {}
+        else:
+            body = {}
 
-    try:
+        task_id = body.get("task_id", "task_1_job_failure")
+
         obs = env.reset(task_id=task_id)
 
         return {
