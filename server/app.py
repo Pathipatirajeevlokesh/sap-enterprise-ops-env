@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from typing import Optional
 import json
 from fastapi import Body
+from fastapi import Request
 
 from models.action import SAPAction
 from server.environment import SAPBasisEnvironment
@@ -62,16 +63,21 @@ def task_detail(task_id: str):
 
 
 @app.post("/reset")
-def reset(request: dict = Body(default={})):
+async def reset(request: Request):
     try:
-        task_id = request.get("task_id", "task_1_job_failure")
+        body = await request.json()
+    except:
+        body = {}
 
+    task_id = body.get("task_id", "task_1_job_failure")
+
+    try:
         obs = env.reset(task_id=task_id)
 
         return {
             "observation": obs.model_dump(),
-            "task_id":     task_id,
-            "message":     "Episode started. Good luck.",
+            "task_id": task_id,
+            "message": "Episode started. Good luck."
         }
 
     except ValueError as e:
