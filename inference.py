@@ -465,6 +465,20 @@ def run_task(task_id: str) -> dict:
 # ── SERVER LAUNCHER ──────────────────────────────────────────────
 
 def start_server():
+    import socket
+    import subprocess, sys, threading, time
+    import httpx
+
+    # Check if port already in use
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    result = sock.connect_ex(("127.0.0.1", 7860))
+    sock.close()
+
+    if result == 0:
+        print("[INFO] Server already running on port 7860", flush=True)
+        return True
+
+    # Start server if not running
     def _run():
         subprocess.run([
             sys.executable, "-m", "uvicorn",
@@ -473,12 +487,20 @@ def start_server():
             "--port", "7860",
             "--log-level", "error",
         ])
+
     t = threading.Thread(target=_run, daemon=True)
     t.start()
+
+    # Wait until server is ready
     for _ in range(20):
-        if env_health():
-            return True
+        try:
+            r = httpx.get("http://localhost:7860/health")
+            if r.status_code == 200:
+                return True
+        except:
+            pass
         time.sleep(1)
+
     return False
 
 
