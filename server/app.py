@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 import json
+from fastapi import Body
 
 from models.action import SAPAction
 from server.environment import SAPBasisEnvironment
@@ -61,15 +62,18 @@ def task_detail(task_id: str):
 
 
 @app.post("/reset")
-def reset(request: ResetRequest):
-    """Start a new episode. Returns initial observation."""
+def reset(request: dict = Body(default={})):
     try:
-        obs = env.reset(task_id=request.task_id)
+        task_id = request.get("task_id", "task_1_job_failure")
+
+        obs = env.reset(task_id=task_id)
+
         return {
             "observation": obs.model_dump(),
-            "task_id":     request.task_id,
+            "task_id":     task_id,
             "message":     "Episode started. Good luck.",
         }
+
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
