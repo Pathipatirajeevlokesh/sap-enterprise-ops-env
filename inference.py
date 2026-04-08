@@ -48,15 +48,54 @@ env_client = httpx.Client(base_url=API_BASE_URL, timeout=30)
 
 
 def env_reset(task_id: str) -> dict:
-    r = env_client.post("/reset", json={"task_id": task_id})
-    r.raise_for_status()
-    return r.json()
+    import time
+
+    for attempt in range(3):
+        try:
+            r = env_client.post("/reset", json={"task_id": task_id})
+            if r.status_code == 200:
+                return r.json()
+            else:
+                print(f"[WARN] reset failed status={r.status_code}", flush=True)
+        except Exception as e:
+            print(f"[WARN] reset error: {e}", flush=True)
+
+        time.sleep(1)
+
+    print("[ERROR] reset failed after retries, using fallback", flush=True)
+    return {
+        "observation": {
+            "task_id": task_id,
+            "alert_queue": [],
+            "system_health": {},
+            "episode_history": [],
+            "available_actions": [],
+            "step_number": 0,
+        }
+    }
 
 
 def env_step(action: dict) -> dict:
-    r = env_client.post("/step", json={"action": action})
-    r.raise_for_status()
-    return r.json()
+    import time
+
+    for attempt in range(3):
+        try:
+            r = env_client.post("/step", json={"action": action})
+            if r.status_code == 200:
+                return r.json()
+            else:
+                print(f"[WARN] step failed status={r.status_code}", flush=True)
+        except Exception as e:
+            print(f"[WARN] step error: {e}", flush=True)
+
+        time.sleep(1)
+
+    return {
+        "observation": {},
+        "reward": 0.0,
+        "done": True,
+        "final_score": 0.0,
+    }
 
 
 def env_health() -> bool:
