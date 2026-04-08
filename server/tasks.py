@@ -108,10 +108,6 @@ def grade_task1(actions: list[SAPAction], scenario: dict) -> tuple[float, dict]:
 
 
 def grade_task2(actions: list[SAPAction], scenario: dict) -> tuple[float, dict]:
-    """
-    Grade a complete Task 2 episode.
-    Weighted: 60% transport fix + 40% security detection.
-    """
     score = 0.0
     breakdown = {
         "transport_fixed":    False,
@@ -120,6 +116,7 @@ def grade_task2(actions: list[SAPAction], scenario: dict) -> tuple[float, dict]:
         "correct_sec_action": False,
         "red_herring_caught": False,
         "cascade_triggered":  False,
+        "efficiency_penalty": 1.0,
         "final_score":        0.0,
     }
 
@@ -127,9 +124,16 @@ def grade_task2(actions: list[SAPAction], scenario: dict) -> tuple[float, dict]:
     correct_tx  = scenario.get("correct_transaction", "STMS")
     correct_sec = scenario.get("correct_security_action", "block_ip")
 
+    action_types = []
+    fix_methods  = []
+
     for action in actions:
 
-        # Transport fix check
+        action_types.append(action.action_type)
+        if action.fix_method:
+            fix_methods.append(action.fix_method)
+
+        # Transport
         if action.action_type == ActionType.FIX:
             if action.fix_method == correct_fix:
                 breakdown["transport_fixed"] = True
@@ -138,32 +142,43 @@ def grade_task2(actions: list[SAPAction], scenario: dict) -> tuple[float, dict]:
             if action.fix_method == FixMethod.REIMPORT_TRANSPORT:
                 breakdown["cascade_triggered"] = True
 
-        # Security detection check
+        # Security
         if action.action_type == ActionType.ESCALATE:
             breakdown["security_detected"] = True
             if action.security_action == correct_sec:
                 breakdown["correct_sec_action"] = True
 
-    # Score calculation — 60% transport, 40% security
+    # ── BASE SCORE ─────────────────────────────
     if breakdown["transport_fixed"] and breakdown["correct_tx"]:
-        score += 0.60
+        score += 0.6
     elif breakdown["transport_fixed"]:
-        score += 0.35
-    elif breakdown["correct_tx"]:
-        score += 0.20
+        score += 0.4
 
     if breakdown["correct_sec_action"]:
-        score += 0.40
+        score += 0.4
     elif breakdown["security_detected"]:
-        score += 0.15
+        score += 0.2
 
-    # Penalties
+    # ── EFFICIENCY PENALTY ─────────────────────
+    steps = len(actions)
+
+    if steps > 5:
+        breakdown["efficiency_penalty"] *= 0.85
+
+    # Penalize repeated actions
+    if len(set(fix_methods)) < len(fix_methods):
+        breakdown["efficiency_penalty"] *= 0.9
+
+    score *= breakdown["efficiency_penalty"]
+
+    # Cascade penalty
     if breakdown["cascade_triggered"]:
         score -= 0.25
 
     # Clamp
     score = max(0.0, min(1.0, round(score, 4)))
     breakdown["final_score"] = score
+
     return score, breakdown
 
 

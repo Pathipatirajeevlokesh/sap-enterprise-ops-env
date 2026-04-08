@@ -25,9 +25,9 @@ load_dotenv(find_dotenv(), override=True)
 # ── CONFIG ───────────────────────────────────────────────────────
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:7860")
-LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://integrate.api.nvidia.com/v1")
 MODEL_NAME   = os.getenv("MODEL_NAME",   "meta/llama-3.3-70b-instruct")
-HF_TOKEN     = os.getenv("HF_TOKEN",     "")
+HF_TOKEN     = os.getenv("HF_TOKEN")
+LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://integrate.api.nvidia.com/v1")
 MAX_STEPS    = 18
 TEMPERATURE  = 0.0
 MAX_RETRIES  = 2
@@ -38,7 +38,7 @@ SUCCESS_SCORE_THRESHOLD = 0.5
 
 llm = OpenAI(
     base_url = LLM_BASE_URL,
-    api_key  = os.getenv("OPENAI_API_KEY") or HF_TOKEN or "dummy",
+    api_key  = HF_TOKEN or os.getenv("OPENAI_API_KEY"),
 )
 
 # ── ENV CLIENT ───────────────────────────────────────────────────
@@ -215,6 +215,15 @@ def smart_fallback(obs: dict) -> dict:
                 "transaction_code": "SM21", "fix_method": "block_ip",
                 "diagnosis": None, "security_action": None,
                 "reasoning": "Task 3 step 4: block attacker IP"
+            }
+        if "block_ip" in history_text and "escalate_soc" not in history_text:
+            return {
+                "action_type": "escalate",
+                "target_component": "security",
+                "transaction_code": None,
+                "fix_method": None,
+                "security_action": "escalate_soc",
+                "reasoning": "Final escalation after containment"
             }
         return {
             "action_type": "escalate", "target_component": "security",
