@@ -14,13 +14,13 @@
     },
     {
       "task_id": "task_2_transport_security",
-      "final_score": 0.68,
+      "final_score": 0.85,
       "steps_taken": 8,
       "success": true,
       "rewards": [
         0.0,
         0.2344,
-        0.0,
+        0.1969,
         0.0,
         0.0,
         0.0,
@@ -43,6 +43,6 @@
       ]
     }
   ],
-  "average_score": 0.7148,
-  "total_elapsed": 5.07
+  "average_score": 0.7714,
+  "total_elapsed": 8.57
 }

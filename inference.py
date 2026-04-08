@@ -24,28 +24,30 @@ load_dotenv(find_dotenv(), override=True)
 
 # ── CONFIG ───────────────────────────────────────────────────────
 
-API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:7860")
-MODEL_NAME   = os.getenv("MODEL_NAME",   "meta/llama-3.3-70b-instruct")
-HF_TOKEN     = os.getenv("HF_TOKEN")
-LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://integrate.api.nvidia.com/v1")
+ENV_BASE_URL = os.getenv("ENV_BASE_URL", "http://localhost:7860")  # your env
+MODEL_NAME   = os.getenv("MODEL_NAME", "meta/llama-3.3-70b-instruct")
+
+LLM_BASE_URL = os.environ.get("API_BASE_URL")   # validator injects
+API_KEY      = os.environ.get("API_KEY")        # validator injects
+
 MAX_STEPS    = 18
 TEMPERATURE  = 0.0
 MAX_RETRIES  = 2
 BENCHMARK    = "sap-enterprise-ops-env"
 SUCCESS_SCORE_THRESHOLD = 0.5
 
+
 # ── LLM CLIENT ───────────────────────────────────────────────────
 
 llm = OpenAI(
     base_url = LLM_BASE_URL,
-    api_key  = HF_TOKEN or os.getenv("OPENAI_API_KEY"),
+    api_key  = API_KEY,
 )
 
 # ── ENV CLIENT ───────────────────────────────────────────────────
 
 import httpx
-env_client = httpx.Client(base_url=API_BASE_URL, timeout=30)
-
+env_client = httpx.Client(base_url=ENV_BASE_URL, timeout=30)
 
 def env_reset(task_id: str) -> dict:
     import time
@@ -395,6 +397,31 @@ def get_llm_action(obs: dict) -> dict:
     history = obs.get("episode_history", [])
 
     # Tasks 2 and 3 — pure smart fallback
+    # Always try LLM at least once
+    if obs.get("step_number", 0) == 0:
+        try:
+            prompt = obs_to_prompt(obs)
+
+            response = llm.chat.completions.create(
+                model       = MODEL_NAME,
+                temperature = TEMPERATURE,
+                max_tokens  = 300,
+                messages    = [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user",   "content": prompt},
+                ],
+            )
+
+            raw    = response.choices[0].message.content.strip()
+            action = safe_parse_json(raw)
+
+            if action:
+                return normalise_action(action)
+
+        except Exception as e:
+            print(f"[WARN] First LLM call failed: {e}", flush=True)
+
+    # fallback logic
     if task_id in ["task_2_transport_security", "task_3_p1_incident"]:
         return smart_fallback(obs)
 
