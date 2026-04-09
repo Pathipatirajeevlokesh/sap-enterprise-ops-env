@@ -241,7 +241,7 @@ sap-enterprise-ops-env/
 
 ## Authors
 
-**Rajeev Lokesh** — SAP Basis GET at HCLTech, Bengaluru. 7 months hands-on SAP Basis experience.
-**Vignesh P** — Teammate.
+**Rajeev Lokesh** — SAP Basis GET at HCLTech, Bengaluru. 7 months hands-on SAP Basis experience.---TeamLead
+**Vignesh P** —SAP Basis GET at HCLTech, Bengaluru. 7 months hands-on SAP Basis experience.--- Teammate.
 
 Built for the Scaler × Meta × Hugging Face OpenEnv Hackathon 2026.
