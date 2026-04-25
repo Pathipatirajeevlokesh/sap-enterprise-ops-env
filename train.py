@@ -166,6 +166,14 @@ def action_from_id(action_id: str, obs: SAPObservation) -> SAPAction:
             fix_method=FixMethod.BLOCK_IP,
             reasoning="Block the attacker IP from the security alert.",
         )
+    if fix_method == "reset_credentials":
+        return SAPAction(
+            action_type=ActionType.FIX,
+            target_component="security",
+            transaction_code="SM21",
+            fix_method=FixMethod.RESET_CREDENTIALS,
+            reasoning="Reset compromised credentials from the security alert.",
+        )
     if fix_method == "check_log":
         return SAPAction(
             action_type=ActionType.DIAGNOSE,
