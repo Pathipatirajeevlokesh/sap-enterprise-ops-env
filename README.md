@@ -237,7 +237,7 @@ sap-enterprise-ops-env/
 | 🤗 HF Space (Live Env) | https://huggingface.co/spaces/Rajeevlokesh/sap-enterprise-ops-env |
 | 🤗 HF Model | https://huggingface.co/Rajeevlokesh/sap-basis-grpo-agent-v3 |
 | 📓 Colab Notebook |https://colab.research.google.com/drive/1D6H2uItOfw4fBNgZPsRn9X9V88vPHUgq?usp=sharing|
-| 📝 Blog Post | [YOUR_BLOG_URL](https://cozy-pixie-ef431e.netlify.app/) |
+| 📝 Blog Post |https://cozy-pixie-ef431e.netlify.app|
 | 🎥 Demo Video | https://www.youtube.com/watch?v=sU75lZ37-3M |
 | 💻 GitHub | https://github.com/Pathipatirajeevlokesh/sap-enterprise-ops-env |
 | 🔌 Health | https://Rajeevlokesh-sap-enterprise-ops-env.hf.space/health |
