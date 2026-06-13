@@ -178,6 +178,18 @@ export OPENAI_API_KEY=your_nvidia_key
 python inference.py
 ```
 
+### Train a Local Policy
+```bash
+# Train a lightweight tabular Q-learning policy against the local simulator.
+python train.py --episodes 500 --output trained_policy.json
+
+# Evaluate the saved policy without further learning.
+python train.py --evaluate-only --input trained_policy.json
+```
+
+The training script has no external ML dependency. It learns task-specific action
+preferences from environment rewards and saves the policy as JSON.
+
 ### Docker
 ```bash
 docker build -t sap-ops-env .
